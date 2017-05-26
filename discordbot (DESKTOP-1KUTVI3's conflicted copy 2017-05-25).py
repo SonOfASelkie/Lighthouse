@@ -14,9 +14,7 @@ logger.addHandler(handler)
 import asyncio
 import aiohttp
 from lxml import html
-import schedule
-import time
-import datetime
+import requests
 import discord
 client = discord.Client()
 #312598338077720577 bot testing general
@@ -110,78 +108,51 @@ async def on_message(message):
     elif temp.startswith('!playerstats'): # gets the playtime, level and heros for a user 
         temp = message.content.replace('!playerstats ', '')
         url = await make_url(temp)
-        serverURL = message.server.icon_url
-        stats_panel = await stat_panel(url, temp, serverURL)
+        stats_panel = await stat_panel(url, temp)
         await client.send_message(message.channel, embed=stats_panel)
-    elif temp.startswith('!forced'):
-        await dailyUpdateSr()
-async def stat_panel(url, message, serverURL): # Forms the message
+async def stat_panel(url, message): # Forms the message
     # Find page+tree
-    page = await makePage(url)     # I use all these URLs for different uses depending on how easy it is to grab the info from each respectively
-    tree = html.fromstring(page)   # they all utilize a function that utilizes aiohttp to get the web page, and lxml's html import to convert it to a tree
-    mowurl = await make_mow_url(message)
-    mowpage = await makePage(mowurl)
-    mowtree = html.fromstring(mowpage)
-    oburl = await make_buff_url(message)
-    obpage = await makePage(oburl)
-    obtree = html.fromstring(message)
+    page = requests.get(url)
+    tree = html.fromstring(page.content)
     # Assemble Variables
     iconUrl = get_icon_url(page, tree)
     srIconUrl = get_sr_icon_url(page, tree)
     sr = get_sr(page, tree)
     srstr = getsrstr(sr)
-    playerLevel = get_level(mowpage, mowtree)
-    print(playerLevel)
-    # Construct FMT messages
-    fmtpageurls = '[Master Overwatch]({}) ~|~ [Overbuff]({})'
-    fmtlevel = '*{}*'
+    level = get_level(page, tree)
+    mowurl = await make_mow_url(message)s
+    # Construct message
+    embed = discord.Embed(title='Master Overwatch', colour=discord.Colour(0xe91e63), url=mowurl) # creation of the embed message
+    embed.set_thumbnail(url=iconUrl)
+    embed.set_author(name=message, url=url, icon_url=srIconUrl)
+    # embed.add_field(name="**Level**", level)
     fmtsr = '**Skill Rating:** {}'
     fmtsrstr = 'Current Tier: {}'
-    # Construct message
-    embed = discord.Embed(title='Links:', colour=discord.Colour(0xe91e63), description=fmtpageurls.format(mowurl, oburl), timestamp=datetime.datetime.utcnow()) #creation of the embed message
-    embed.set_thumbnail(url=iconUrl)
-    embed.set_footer(text='Fighting Mongooses', icon_url=serverURL)
-    embed.set_author(name=message, url=url, icon_url=srIconUrl)
-    embed.add_field(name="**Level:**", value=fmtlevel.format(playerLevel))
     embed.add_field(name=fmtsr.format(sr), value = fmtsrstr.format(srstr)) # field for SR
     return embed
-
-def get_sr(page, tree): # get the Skill Rating value f/ the playoverwatch webpage
+def get_sr(page, tree):
     sr = tree.xpath(".//div[@class='competitive-rank']/div/text()")[0]
-    return sr 
- 
-def get_icon_url(page, tree): # get the player icon f/ the playeroverwatch webpage
+    return sr  
+def get_icon_url(page, tree):
     url = tree.xpath('.//img[@class="player-portrait"]/@src')[0]
     return url
-
-def get_sr_icon_url(page, tree): # get the sr icon f/ the playoverwatch webpage
+def get_sr_icon_url(page, tree):
     url = tree.xpath('.//div[@class="competitive-rank"]/img/@src')[0]
     return url
-
-def get_level(page, tree): # get the user-level f/ the masteroverwatch webpage
-    level = tree.xpath('.//div[@class="header-avatar"]/span/text()')[0]
-    return level
-
-async def make_url(message): # gets the URL for playeroverwatch
+def get_level(page, tree):
+    level = 1
+async def make_url(message): # gets the URL
     url = 'https://playoverwatch.com/en-us/career/pc/us/'
     message = message.replace(' ', '')
     url = url+message
     url = url.replace("#", "-")
     return url
-
 async def make_mow_url(message): # figures out the URL for masteroverwatch
     url = 'https://masteroverwatch.com/profile/pc/us/'
     url = url+message
     url = url.replace('#', '-')
     return url
-
-async def make_buff_url(message): # figures out the URL for overbuff
-    url = 'https://www.overbuff.com/players/pc/'
-    url = url+message
-    url = url.replace('#', '-')
-    return url
-
-def getsrstr(sr): # brute force if-else if-else statements b/c i'm lazy
+def getsrstr(sr): # brute force if-else if-else staement b/c i'm lazy
     sr = int(sr)
     if sr < 1500:
         return 'Bronze'
@@ -197,28 +168,7 @@ def getsrstr(sr): # brute force if-else if-else statements b/c i'm lazy
         return 'Master'
     else:
         return 'Grand Master'
-    
-async def dailyUpdateSr():
-    tempchannel = client.get_channel('317334084613570581')
-    await client.purge_from(tempchannel, limit=20)
-    serverURL = client.get_channel('317334084613570581').server.icon_url
-    members = ['lafon#1272', 'SonOfASelkie#1524', 'CrispyMD#1678', 'Pillz#11316', 'limedrop#1111', 'Trafficcone#1832']
-    for name in members:
-        url = await make_url(name)
-        stats_panel = await stat_panel(url, name, serverURL)
-        await client.send_message(tempchannel, embed=stats_panel)
         
-    schedule.every().day.at("00:00").do(dailyUpdateSr) # runs the dailyUpdateSr command at that time each day
-    while 1:
-        schedule.run_pending()
-        time.sleep(1)
-    
-async def makePage(url): # uses aiohttp to get the webpage. aiohttp > requests b/c aiohttp doesn't freeze the code while making the request
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as resp:
-            return (await resp.text())
-        
-        
-client.run('MzEyNTg5MTAxMDA0MDk1NDkw.DAC0sQ.ch4djGO-YZlvyzHB40Ov57ehMUI') # This token is my bot's specific token that I use to call it
+client.run('MzEyNTg5MTAxMDA0MDk1NDkw.DAC0sQ.ch4djGO-YZlvyzHB40Ov57ehMUI')
 
 
