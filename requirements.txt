@@ -1,4 +1,4 @@
 discord.py[voice]==0.16.1
 aiohttp==2.2
 lxml==3.8
-asyncio==18.5.1
+asyncio==3.6
